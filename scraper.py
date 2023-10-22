@@ -4,11 +4,16 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup as bs
 import requests
-from lxml import html, etree
+import xlwt
+from xlwt import Workbook
 import time
 
 
 BASE_URL = 'https://www.iberinform.es'
+data={}
+
+
+
 def open_browser():
     path = os.path.abspath('linux64/chromedriver')
     url= "https://www.iberinform.es/busquedaEmpresa?csrf=C4kAbBLl0k63DekQczGJ-OTAEnmgJFglNODVAsyXHPc%3AAAABi0yJ2dY%3AyuPdFygEd-6rrM3iwI8FdA&criterioBusqueda=viveros"
@@ -24,29 +29,40 @@ def open_browser():
     soup = bs(html, features='html.parser')
     driver.quit()
 
-    return(soup)
+    return soup
 
-def extract_data(soup):
+def extract_data(soup) -> dict:
+    'recive soup object'
+
     table = soup.find('table', class_="table table-striped resultados__tabla")
     #NOMBRES DE COLUMNAS
-    names_col_3 = table.find('thead')
-    list_col_3 = [th.text for th in names_col_3.find_all('th')]
+    contenedor_names_col_3 = table.find('thead')
+    companys = [] #Es una lista llena de diccionarios de companys
+
     #VALORES
-    data = []
+    list_keys_short = [th.text for th in contenedor_names_col_3.find_all('th')] # EMPRESA PROVINCIA MUNICIPIO
+    list_values_short = []
     container_body_table = table.find('tbody')
     list_all_companies = container_body_table.find_all('tr')
     for i in range(0, len(list_all_companies)):
+        
         company = list_all_companies[i].find_all('td')
         company_url = (company[0].find('a')).get('href')
         company_nombre = (company[0].text).strip()
         company_provincia = company[1].text
         company_municipio = company[2].text
-        data.append([company_nombre, company_provincia, company_municipio, company_url])
         
+        list_values_short.append([company_nombre, company_provincia, company_municipio])
+        print(company)
+        print(company_nombre)
+
         break
-    return data, company_url
+    return company_url
 
 def extract_data_by_company(url):
+    'extract company detail by url'
+
+    contador = 0
     company_url = BASE_URL + url
     test_url = url
     
@@ -63,24 +79,35 @@ def extract_data_by_company(url):
         "Upgrade-Insecure-Requests": "1",
         "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0"
     }
-    #res = requests.get(url = (BASE_URL + url), headers= REQUEST_HEADER, cookies=cookies)
     res = requests.get(url = test_url, headers=REQUEST_HEADER)
     html = res.text
-    soup = bs(html, 'lxml')
-    data_container = soup.find('div', attrs={'xpath' : '/html/body/div/main/section[3]/div/div[2]'})
-    print(data_container)
+    soup = bs(html, 'html.parser')
+    data_container = soup.find_all('ul', class_='company-data')
+
+    list_keys_column_izq = [element.text for element in data_container[0].find_all('span', class_='title')]
+    list_value_column_izq = [element.text for element in data_container[0].find_all('div', class_='info')]
+    list_keys_column_der = [element.text for element in data_container[1].find_all('span', class_='title')]
+    list_value_column_der = [element.text for element in data_container[1].find_all('div', class_='info')]
+
+    return list_keys_column_izq + list_keys_column_der, list_value_column_izq + list_value_column_der
+    
+
+def data_union():
     pass
-    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #ARREGLAR
 
+def data_to_xls(data):
+    'recive dict'
+    wb = Workbook()
+    company_sheet = wb.add_sheet('companies')
+    
 
+    
 if __name__ == "__main__":
-    #soup = open_browser()
-    #result_extract_data = extract_data(soup)
-    #data_all_companies, company_url = result_extract_data[0], result_extract_data[1]
-
+    soup = open_browser()
+    company_url = extract_data(soup)
     test_url = 'https://www.iberinform.es/empresa/778752/viveros-gimeno-valladolid'
+    result_company = extract_data_by_company(test_url)
+    list_keys_long, list_values_long = result_company[0], result_company[1]
     extract_data_by_company(test_url)
     
     
